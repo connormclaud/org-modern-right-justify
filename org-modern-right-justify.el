@@ -51,6 +51,31 @@ This function is intended for use as `:filter-return` advice on
       (concat graph-string org-modern-right-justify--habit-graph-terminator)
     graph-string)) ; Return original if not a string (robustness)
 
+;;; Habit Graph Padding
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun org-modern-right-justify--pad-habit-lines (&optional _line)
+  "Pad habit lines so the consistency graph doesn't overwrite tags.
+Inserts spaces before each tag group on habit lines to push tags
+past the graph zone.  Uses `indent-to' which is a no-op when tags
+are already far enough to the right."
+  (let ((inhibit-read-only t)
+        (indent-tabs-mode nil)
+        (graph-end (+ org-habit-graph-column 1
+                      org-habit-preceding-days
+                      org-habit-following-days)))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (when (get-text-property (point) 'org-habit-p)
+          (end-of-line)
+          (when (re-search-backward org-tag-group-re (line-beginning-position) t)
+            (goto-char (match-beginning 1))
+            (let ((needed (max 0 (- (1+ graph-end) (current-column)))))
+              (when (> needed 0)
+                (insert (make-string needed ?\s))))))
+        (forward-line)))))
+
 ;;; Tag Alignment
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -133,6 +158,8 @@ and appending terminators to `org-habit` graphs."
   (interactive)
   (advice-add 'org-modern-agenda :after #'org-modern-right-justify--advice-align-tags-in-agenda)
   (advice-add 'org-habit-build-graph :filter-return #'org-modern-right-justify--append-terminator-to-habit-graph)
+  (advice-add 'org-habit-insert-consistency-graphs
+              :before #'org-modern-right-justify--pad-habit-lines)
   (message "Org Modern Right Justify activated."))
 
 ;;;###autoload
@@ -141,6 +168,8 @@ and appending terminators to `org-habit` graphs."
   (interactive)
   (advice-remove 'org-modern-agenda #'org-modern-right-justify--advice-align-tags-in-agenda)
   (advice-remove 'org-habit-build-graph #'org-modern-right-justify--append-terminator-to-habit-graph)
+  (advice-remove 'org-habit-insert-consistency-graphs
+                 #'org-modern-right-justify--pad-habit-lines)
   (message "Org Modern Right Justify deactivated."))
 
 ;;; Provide Feature
