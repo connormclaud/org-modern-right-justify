@@ -145,7 +145,16 @@ This function is based on the user's provided working snippet."
 (defun org-modern-right-justify--advice-align-tags-in-agenda ()
   "Align tags in the current agenda buffer after `org-modern-agenda`.
 Processes the whole buffer by calling the core alignment function."
-  (org-modern-right-justify--align-tags nil))
+  (org-modern-right-justify--align-tags nil)
+  (add-hook 'text-scale-mode-hook
+            #'org-modern-right-justify--on-text-scale-change nil t))
+
+(defun org-modern-right-justify--on-text-scale-change ()
+  "Re-align tags after text-scale change.
+The pixel widths baked into display specs become stale when
+text-scale changes, causing tags to be mispositioned."
+  (when (derived-mode-p 'org-agenda-mode)
+    (org-modern-right-justify--align-tags nil)))
 
 ;;; Activation and Deactivation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -170,6 +179,10 @@ and appending terminators to `org-habit` graphs."
   (advice-remove 'org-habit-build-graph #'org-modern-right-justify--append-terminator-to-habit-graph)
   (advice-remove 'org-habit-insert-consistency-graphs
                  #'org-modern-right-justify--pad-habit-lines)
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (remove-hook 'text-scale-mode-hook
+                   #'org-modern-right-justify--on-text-scale-change t)))
   (message "Org Modern Right Justify deactivated."))
 
 ;;; Provide Feature
