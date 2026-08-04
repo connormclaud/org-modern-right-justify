@@ -76,6 +76,43 @@ are already far enough to the right."
                 (insert (make-string needed ?\s))))))
         (forward-line)))))
 
+;;; Agenda Item Text Property Sanitization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun org-modern-right-justify--strip-head-props (args)
+  "Strip face/display text properties from the non-tag part of the headline.
+Intended as `:filter-args' advice on `org-agenda-format-item'.
+
+When an org file (e.g. habits.org) is open as a live buffer with
+`org-modern-mode' active, font-lock has already applied display
+properties to the buffer text — most notably `org-modern-label'
+with `:height 0.8 :width condensed' on TODO keywords.  These
+properties are copied verbatim into the agenda via
+`buffer-substring' (org-agenda.el, `org-agenda-get-scheduled',
+the (head ...) binding).  In the agenda buffer those condensed
+characters make the pre-graph text narrower in pixels than for
+items whose source file is not open, shifting the habit graph
+left.  `org-modern-agenda' re-applies its own styling after
+finalization, so stripping the inherited props here is safe.
+
+Only the non-tag portion of the headline is stripped.  The tag
+group is left intact so that any display properties on tag
+characters (applied by `org-modern-mode' in the source buffer)
+remain available for pixel-width measurement by the tag-alignment
+code, which runs after `org-modern-agenda' has had a chance to
+re-apply its own display properties on top."
+  (let ((txt (cadr args)))
+    (when (stringp txt)
+      (let* ((tag-start (and (string-match org-tag-group-re txt)
+                             (match-beginning 1)))
+             ;; Strip props only up to the start of the tag group.
+             ;; If there are no tags, strip the whole string.
+             (strip-end (or tag-start (length txt)))
+             (head (substring-no-properties txt 0 strip-end))
+             (tail (if tag-start (substring txt strip-end) "")))
+        (setcar (cdr args) (concat head tail)))))
+  args)
+
 ;;; Tag Alignment
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -144,7 +181,8 @@ This function is based on the user's provided working snippet."
 
 (defun org-modern-right-justify--advice-align-tags-in-agenda ()
   "Align tags in the current agenda buffer after `org-modern-agenda`.
-Processes the whole buffer by calling the core alignment function."
+Processes the whole buffer, or the narrowed region on a partial
+finalize (e.g. a single line update from `org-agenda-change-all-lines')."
   (org-modern-right-justify--align-tags nil)
   (add-hook 'text-scale-mode-hook
             #'org-modern-right-justify--on-text-scale-change nil t))
@@ -169,6 +207,8 @@ and appending terminators to `org-habit` graphs."
   (advice-add 'org-habit-build-graph :filter-return #'org-modern-right-justify--append-terminator-to-habit-graph)
   (advice-add 'org-habit-insert-consistency-graphs
               :before #'org-modern-right-justify--pad-habit-lines)
+  (advice-add 'org-agenda-format-item :filter-args
+              #'org-modern-right-justify--strip-head-props)
   (message "Org Modern Right Justify activated."))
 
 ;;;###autoload
@@ -179,6 +219,8 @@ and appending terminators to `org-habit` graphs."
   (advice-remove 'org-habit-build-graph #'org-modern-right-justify--append-terminator-to-habit-graph)
   (advice-remove 'org-habit-insert-consistency-graphs
                  #'org-modern-right-justify--pad-habit-lines)
+  (advice-remove 'org-agenda-format-item
+                 #'org-modern-right-justify--strip-head-props)
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (remove-hook 'text-scale-mode-hook
