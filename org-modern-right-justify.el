@@ -142,7 +142,7 @@ This function is based on the user's provided working snippet."
          (let ((processed-line-end (line-end-position)))
            (let* ((tag-match (match-string 1)) ; The actual tags, e.g., ":TAG1:TAG2:"
                   (tag-len (length tag-match))
-                  (tag-pixel-width (string-pixel-width tag-match (current-buffer)))
+                  (tag-pixel-width (string-pixel-width tag-match))
                   ;; `target-col` is where the tags should effectively start if left-aligned,
                   ;; or the reference for right-alignment margin.
                   (target-col
